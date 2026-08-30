@@ -1,0 +1,6 @@
+change_id,description,category,cost_impact,schedule_impact_days,date_raised,status,date_decided
+CH01,Expedited air freight for compressor rotor,Logistics,35000,-15,2026-05-01,Approved,2026-05-05
+CH02,Additional structural steel for revised compressor skid mounting,Engineering,18000,5,2026-03-15,Approved,2026-03-22
+CH03,Scope reduction: remove redundant vibration monitoring sensor,Scope,-8000,0,2026-04-10,Approved,2026-04-14
+CH04,Client-requested additional FAT cycle for compressor skid,Client Request,12000,5,2026-06-01,Approved,2026-06-08
+CH05,Contractor claim for standby during procurement delay,Commercial,22000,0,2026-07-10,Pending,

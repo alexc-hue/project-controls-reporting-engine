@@ -1,0 +1,7 @@
+risk_id,description,category,probability,impact,status,mitigation_owner,mitigation_due_date
+R01,Compressor rotor vendor capacity constraint,Procurement,4,5,Closed,Procurement Lead,2026-04-15
+R02,Expedited freight customs delay risk,Logistics,1,2,Mitigating,Procurement Lead,2026-06-01
+R03,Commissioning schedule compression risk,Commissioning,3,4,Mitigating,Commissioning Lead,2026-08-15
+R04,Client acceptance test readiness risk,Commissioning,2,4,Open,Project Manager,2026-08-20
+R05,Cost overrun on expedited logistics,Commercial,2,3,Mitigating,Project Controls,2026-07-01
+R06,Site HSE risk during compressed installation window,HSE,2,5,Open,HSE Manager,
