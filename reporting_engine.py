@@ -190,6 +190,8 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
         ax.barh(i, width, left=start_num, color=colors[tag], height=0.6)
     ax.set_yticks([])
     ax.set_title("Schedule (current, colored by criticality)")
+    handles = [plt.Rectangle((0, 0), 1, 1, color=c, label=k) for k, c in colors.items()]
+    ax.legend(handles=handles, loc="lower right", fontsize=7)
     ax.xaxis_date()
     ax.tick_params(axis="x", rotation=30)
 
