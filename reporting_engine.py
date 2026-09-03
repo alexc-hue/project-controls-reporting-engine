@@ -33,6 +33,34 @@ PROJECT_START = "2026-01-05"
 PLANNED_FINISH = "2026-08-03"
 STATUS_DATE = "2026-08-01"
 
+# Standardized chart color system (chart chrome, status scale, categorical series)
+CHART_BG = "#fcfcfb"
+INK = "#10182b"
+GRID = "#e1e0d9"
+SERIES_1 = "#2a78d6"
+SERIES_2 = "#eb6834"
+SERIES_3 = "#1baf7a"
+STATUS_GOOD = "#0ca30c"
+STATUS_WARNING = "#fab219"
+STATUS_CRITICAL = "#d03b3b"
+
+
+def _apply_chrome(fig, axes) -> None:
+    """Apply the standardized chart chrome (background, ink, gridlines) to a figure."""
+    fig.patch.set_facecolor(CHART_BG)
+    if hasattr(axes, "flatten"):
+        axes = axes.flatten().tolist()
+    elif not isinstance(axes, (list, tuple)):
+        axes = [axes]
+    for ax in axes:
+        ax.set_facecolor(CHART_BG)
+        ax.title.set_color(INK)
+        ax.xaxis.label.set_color(INK)
+        ax.yaxis.label.set_color(INK)
+        ax.tick_params(colors=INK)
+        for spine in ax.spines.values():
+            spine.set_color(INK)
+
 
 def money(x: float) -> str:
     return f"${x:,.0f}"
@@ -142,19 +170,19 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
     ts = d["ts"]
     actuals = dash.actuals_only(ts)
     ax.plot(ts["period_label"].to_numpy(), ts["planned_value_cum"].to_numpy(),
-            label="Planned (PV)", color="#4C72B0", linewidth=2)
+            label="Planned (PV)", color=SERIES_1, linewidth=2)
     ax.plot(actuals["period_label"].to_numpy(), actuals["earned_value_cum"].to_numpy(),
-            label="Earned (EV)", color="#55A868", linewidth=2, marker="o", markersize=4)
+            label="Earned (EV)", color=SERIES_2, linewidth=2, marker="o", markersize=4)
     ax.plot(actuals["period_label"].to_numpy(), actuals["actual_cost_cum"].to_numpy(),
-            label="Actual (AC)", color="#C44E52", linewidth=2, marker="o", markersize=4)
+            label="Actual (AC)", color=SERIES_3, linewidth=2, marker="o", markersize=4)
     ax.set_title("Cost / EVM")
     ax.legend(fontsize=8)
-    ax.grid(alpha=0.3)
+    ax.grid(color=GRID, linewidth=0.6)
     ax.tick_params(axis="x", rotation=30)
 
     ax = axes[0, 1]
     comparison = s["comparison"]
-    colors = {"CRITICAL": "#C44E52", "near-critical": "#DD8452", "ok": "#55A868"}
+    colors = {"CRITICAL": STATUS_CRITICAL, "near-critical": STATUS_WARNING, "ok": STATUS_GOOD}
     for i, row in enumerate(comparison.sort_values("current_start").itertuples()):
         tag = "CRITICAL" if row.is_critical else ("near-critical" if row.is_near_critical else "ok")
         start_num = mdates.date2num(row.current_start)
@@ -168,24 +196,26 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
     ax = axes[1, 0]
     cum = c["cum"]
     ax.step(cum["date_decided"].to_numpy(), cum["cum_cost"].to_numpy(), where="post",
-            color="#4C72B0", linewidth=2)
-    ax.scatter(cum["date_decided"].to_numpy(), cum["cum_cost"].to_numpy(), color="#4C72B0", s=20)
-    ax.axhline(0, color="gray", linewidth=0.8)
+            color=SERIES_1, linewidth=2)
+    ax.scatter(cum["date_decided"].to_numpy(), cum["cum_cost"].to_numpy(), color=SERIES_1, s=20)
+    ax.axhline(0, color=INK, linewidth=0.8, alpha=0.6)
     ax.set_title("Cumulative Approved Change Cost")
-    ax.grid(alpha=0.3)
+    ax.grid(color=GRID, linewidth=0.6)
     ax.tick_params(axis="x", rotation=30)
 
     ax = axes[1, 1]
     trend = r["exposure_trend"]
     ax.plot(trend["snapshot_date"].to_numpy(), trend["total_exposure"].to_numpy(),
-            color="#C44E52", linewidth=2, marker="o")
+            color=SERIES_1, linewidth=2, marker="o")
     ax.set_title("Portfolio Risk Exposure")
-    ax.grid(alpha=0.3)
+    ax.grid(color=GRID, linewidth=0.6)
     ax.tick_params(axis="x", rotation=30)
 
-    fig.suptitle("Ridgeline LNG Compressor Station Retrofit — Four Disciplines, One Programme", fontsize=13)
+    _apply_chrome(fig, axes)
+    fig.suptitle("Ridgeline LNG Compressor Station Retrofit — Four Disciplines, One Programme",
+                 fontsize=13, color=INK)
     fig.tight_layout()
-    fig.savefig(os.path.join(ASSETS_DIR, "integrated_summary.png"), dpi=140)
+    fig.savefig(os.path.join(ASSETS_DIR, "integrated_summary.png"), dpi=140, facecolor=CHART_BG)
     plt.close(fig)
 
 
