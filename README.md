@@ -66,6 +66,7 @@ Ridgeline LNG Compressor Station Retrofit — as of 2026-08-01
 
 COST / EVM (dashboard engine)
   SPI 0.85  CPI 0.91  EAC $2,637,363  VAC $-237,363
+  SPI-based forecast finish: 2026-09-10   Revised budget (BAC + approved changes): $2,457,000
 
 SCHEDULE (schedule health engine)
   Schedule Health Score: 38.3/100  Slip: +30d  Critical/near-critical: 66.7%
@@ -74,7 +75,7 @@ CHANGE CONTROL (change engine)
   Approved: $57,000  (-5d)   Pending: $22,000   Stale pending: 0
 
 RISK (risk trend engine)
-  Risk Trajectory Score: 33.3/100  Exposure change: +111.1%   Effective mitigations: 2/3
+  Risk Trajectory Score: 83.3/100  Exposure change: +0.0%   Effective mitigations: 2/3
 ```
 
 Followed by the Integrated Observations section connecting the four
