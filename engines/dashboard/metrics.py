@@ -8,6 +8,7 @@ tests, and standalone CLI.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 
@@ -27,8 +28,15 @@ def add_performance_indices(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["sv"] = out["earned_value_cum"] - out["planned_value_cum"]
     out["cv"] = out["earned_value_cum"] - out["actual_cost_cum"]
-    out["spi"] = out["earned_value_cum"] / out["planned_value_cum"]
-    out["cpi"] = out["earned_value_cum"] / out["actual_cost_cum"]
+
+    ev = out["earned_value_cum"].to_numpy(dtype=float)
+    pv = out["planned_value_cum"].to_numpy(dtype=float)
+    ac = out["actual_cost_cum"].to_numpy(dtype=float)
+    # Guard zero PV/AC the same way project_summary guards zero (bac - ac) for
+    # tcpi: a zero denominator can't yield a meaningful index, so report NaN
+    # instead of letting it silently become inf/nan from a raw division.
+    out["spi"] = np.divide(ev, pv, out=np.full_like(ev, np.nan), where=pv != 0)
+    out["cpi"] = np.divide(ev, ac, out=np.full_like(ev, np.nan), where=ac != 0)
     return out
 
 
@@ -109,8 +117,15 @@ def change_impact_summary(changes: pd.DataFrame, bac: float) -> dict:
 
 def forecast_completion_date(
     milestones: pd.DataFrame, spi: float, project_start: str, planned_finish: str
-) -> pd.Timestamp:
-    """Simple SPI-based forecast: stretch remaining planned duration by 1/SPI."""
+):
+    """Simple SPI-based forecast: stretch remaining planned duration by 1/SPI.
+
+    Returns None (not yet forecastable) if SPI is zero/NaN, e.g. the first
+    reported period has no earned value yet, rather than raising
+    ZeroDivisionError.
+    """
+    if not spi or pd.isna(spi):
+        return None
     start = pd.Timestamp(project_start)
     planned_end = pd.Timestamp(planned_finish)
     total_planned_days = (planned_end - start).days

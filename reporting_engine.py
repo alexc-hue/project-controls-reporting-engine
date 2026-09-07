@@ -115,9 +115,14 @@ def print_report(d: dict, s: dict, c: dict, r: dict) -> None:
     print("Ridgeline LNG Compressor Station Retrofit — as of", STATUS_DATE)
     print("=" * 68)
     print()
+    forecast_finish, change_summary = d["forecast_finish"], d["change_summary"]
+    forecast_str = forecast_finish.strftime("%Y-%m-%d") if forecast_finish is not None else "not yet forecastable"
+
     print(f"COST / EVM (dashboard engine)")
     print(f"  SPI {ds['spi']:.2f}  CPI {ds['cpi']:.2f}  EAC {money(ds['eac'])}  "
           f"VAC {money(ds['vac'])}")
+    print(f"  SPI-based forecast finish: {forecast_str}   "
+          f"Revised budget (BAC + approved changes): {money(change_summary['revised_budget'])}")
     print()
     print(f"SCHEDULE (schedule health engine)")
     print(f"  Schedule Health Score: {ss['total_score']}/100  "
@@ -223,6 +228,8 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
 
 def write_report_markdown(d: dict, s: dict, c: dict, r: dict) -> None:
     ds, ss, cs, rs = d["summary"], s["score"], c["stats"], r["score"]
+    forecast_finish, change_summary = d["forecast_finish"], d["change_summary"]
+    forecast_str = forecast_finish.strftime("%Y-%m-%d") if forecast_finish is not None else "not yet forecastable"
     lines = [
         "# Integrated Programme Status Report",
         "",
@@ -231,6 +238,7 @@ def write_report_markdown(d: dict, s: dict, c: dict, r: dict) -> None:
         "| Discipline | Headline |",
         "|---|---|",
         f"| Cost / EVM | SPI {ds['spi']:.2f}, CPI {ds['cpi']:.2f}, EAC {money(ds['eac'])} |",
+        f"| Forecast (SPI-based) | Finish {forecast_str}, revised budget {money(change_summary['revised_budget'])} |",
         f"| Schedule | Health Score {ss['total_score']}/100, slip {ss['slip_days']:+d}d |",
         f"| Change Control | Approved {money(cs['approved_cost_impact'])} ({cs['approved_schedule_days']:+d}d) |",
         f"| Risk | Trajectory Score {rs['total_score']}/100, exposure {rs['exposure_pct_change']:+.1f}% |",

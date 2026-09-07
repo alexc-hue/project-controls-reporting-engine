@@ -18,9 +18,29 @@ def load_snapshots(path: str) -> pd.DataFrame:
 
 
 def portfolio_exposure_trend(snapshots: pd.DataFrame) -> pd.DataFrame:
-    """Total exposure across all risks present at each snapshot date."""
+    """Total exposure at each snapshot date, restricted to risks tracked at
+    both the first and last snapshot dates.
+
+    Summing whatever happens to be in the register at each date conflates
+    real escalation/de-escalation with risks simply entering or leaving the
+    register between periods (e.g. a risk added mid-programme, or one that
+    stops being reported). Restricting to the cohort of risks present at both
+    ends of the window being compared keeps the reported trend a measure of
+    actual movement in the risks that were tracked throughout, not an
+    artifact of register churn.
+    """
+    dates = snapshots["snapshot_date"].sort_values().unique()
+    if len(dates) == 0:
+        return pd.DataFrame(columns=["snapshot_date", "total_exposure"])
+
+    first_date, last_date = dates[0], dates[-1]
+    risks_at_first = set(snapshots.loc[snapshots["snapshot_date"] == first_date, "risk_id"])
+    risks_at_last = set(snapshots.loc[snapshots["snapshot_date"] == last_date, "risk_id"])
+    tracked_throughout = risks_at_first & risks_at_last
+
+    matched = snapshots[snapshots["risk_id"].isin(tracked_throughout)]
     return (
-        snapshots.groupby("snapshot_date")["exposure"]
+        matched.groupby("snapshot_date")["exposure"]
         .sum()
         .reset_index()
         .rename(columns={"exposure": "total_exposure"})
@@ -28,14 +48,28 @@ def portfolio_exposure_trend(snapshots: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+CLOSED_STATUSES = {"closed", "resolved"}
+
+
 def per_risk_trajectory(snapshots: pd.DataFrame, latest_snapshot: pd.Timestamp) -> pd.DataFrame:
     """First vs. last recorded exposure per risk, classified as a trend."""
+    has_status_data = "status" in snapshots.columns and snapshots["status"].notna().any()
     rows = []
     for risk_id, group in snapshots.groupby("risk_id"):
         group = group.sort_values("snapshot_date")
         first, last = group.iloc[0], group.iloc[-1]
         delta = last["exposure"] - first["exposure"]
-        if last["snapshot_date"] < latest_snapshot:
+        last_status = str(last.get("status", "")).strip().lower()
+        if has_status_data:
+            # Trust the actual status field: a risk that simply stopped being
+            # reported (e.g. dropped from later snapshots) isn't necessarily
+            # closed — only an explicit Closed/Resolved status is.
+            is_closed = last_status in CLOSED_STATUSES
+        else:
+            # No status data at all to go on: fall back to the old
+            # absence-based inference (last snapshot predates the latest one).
+            is_closed = last["snapshot_date"] < latest_snapshot
+        if is_closed:
             trend = "Closed/Resolved"
         elif delta >= TREND_THRESHOLD:
             trend = "Worsening"
