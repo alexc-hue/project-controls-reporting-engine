@@ -20,6 +20,7 @@ import os
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
+from engines import chart_style
 from engines.dashboard import metrics as dash
 from engines.schedule import metrics as sched
 from engines.change import metrics as chg
@@ -33,37 +34,10 @@ PROJECT_START = "2026-01-05"
 PLANNED_FINISH = "2026-08-03"
 STATUS_DATE = "2026-08-01"
 
-# Standardized chart color system (chart chrome, status scale, categorical series)
-CHART_BG = "#fcfcfb"
-INK = "#10182b"
-GRID = "#e1e0d9"
-SERIES_1 = "#2a78d6"
-SERIES_2 = "#eb6834"
-SERIES_3 = "#1baf7a"
-STATUS_GOOD = "#0ca30c"
-STATUS_WARNING = "#fab219"
-STATUS_CRITICAL = "#d03b3b"
-
-
-def _apply_chrome(fig, axes) -> None:
-    """Apply the standardized chart chrome (background, ink, gridlines) to a figure."""
-    fig.patch.set_facecolor(CHART_BG)
-    if hasattr(axes, "flatten"):
-        axes = axes.flatten().tolist()
-    elif not isinstance(axes, (list, tuple)):
-        axes = [axes]
-    for ax in axes:
-        ax.set_facecolor(CHART_BG)
-        ax.title.set_color(INK)
-        ax.xaxis.label.set_color(INK)
-        ax.yaxis.label.set_color(INK)
-        ax.tick_params(colors=INK)
-        for spine in ax.spines.values():
-            spine.set_color(INK)
-
 
 def money(x: float) -> str:
-    return f"${x:,.0f}"
+    sign = "-" if x < 0 else ""
+    return f"{sign}${abs(x):,.0f}"
 
 
 def run_dashboard_engine():
@@ -72,7 +46,7 @@ def run_dashboard_engine():
     risks = dash.load_risk_register(os.path.join(DATA_DIR, "risk_register.csv"), STATUS_DATE)
     changes = dash.load_change_register(os.path.join(DATA_DIR, "change_register.csv"))
     summary = dash.project_summary(ts, BAC)
-    forecast_finish = dash.forecast_completion_date(milestones, summary["spi"], PROJECT_START, PLANNED_FINISH)
+    forecast_finish = dash.forecast_completion_date(summary["spi"], PROJECT_START, PLANNED_FINISH)
     change_summary = dash.change_impact_summary(changes, BAC)
     return {
         "ts": ts, "milestones": milestones, "risks": risks, "changes": changes,
@@ -102,9 +76,37 @@ def run_risk_engine():
     latest = snapshots["snapshot_date"].max()
     trajectory = risk.per_risk_trajectory(snapshots, latest)
     effectiveness = risk.mitigation_effectiveness(snapshots)
-    score = risk.risk_trajectory_score(exposure_trend, effectiveness)
-    return {"snapshots": snapshots, "exposure_trend": exposure_trend,
-            "trajectory": trajectory, "effectiveness": effectiveness, "score": score}
+    score = risk.risk_trajectory_score(exposure_trend, effectiveness, snapshots)
+    return {"exposure_trend": exposure_trend, "trajectory": trajectory,
+            "effectiveness": effectiveness, "score": score}
+
+
+def _integrated_observations(d: dict, s: dict, c: dict) -> tuple[str, str, str]:
+    """The three per-discipline observation sentences, shared by the console
+    report and the markdown writer so they can't drift out of sync with each
+    other (they had: the markdown version was silently dropping a clause the
+    console version kept)."""
+    ds, ss, cs = d["summary"], s["score"], c["stats"]
+    schedule_obs = (
+        f"that single activity is the reason for the programme's entire "
+        f"{ss['slip_days']}-day slip, and {ss['pct_activities_critical_or_near']}% "
+        f"of activities are now critical or near-critical as a direct result."
+    )
+    cost_obs = (
+        f"CPI has fallen to {ds['cpi']:.2f} over the same window the delay "
+        f"unfolded, and {money(cs['approved_cost_impact'])} of the approved change "
+        f"impact ({cs['approved_schedule_days']:+d} net days) is the cost of "
+        f"responding to it, chiefly the expedited air-freight change that clawed "
+        f"back schedule at a cost."
+    )
+    risk_obs = (
+        "the procurement-capacity risk (R01) was already flagged and "
+        "escalating months before the delay materialized, and its mitigation "
+        "closed after the risk had already converted into an actual schedule "
+        "hit, a live example of exactly what a risk register tracked as a trend "
+        "is supposed to catch, and a single snapshot would have missed."
+    )
+    return schedule_obs, cost_obs, risk_obs
 
 
 def print_report(d: dict, s: dict, c: dict, r: dict) -> None:
@@ -118,24 +120,24 @@ def print_report(d: dict, s: dict, c: dict, r: dict) -> None:
     forecast_finish, change_summary = d["forecast_finish"], d["change_summary"]
     forecast_str = forecast_finish.strftime("%Y-%m-%d") if forecast_finish is not None else "not yet forecastable"
 
-    print(f"COST / EVM (dashboard engine)")
+    print("COST / EVM (dashboard engine)")
     print(f"  SPI {ds['spi']:.2f}  CPI {ds['cpi']:.2f}  EAC {money(ds['eac'])}  "
           f"VAC {money(ds['vac'])}")
     print(f"  SPI-based forecast finish: {forecast_str}   "
           f"Revised budget (BAC + approved changes): {money(change_summary['revised_budget'])}")
     print()
-    print(f"SCHEDULE (schedule health engine)")
+    print("SCHEDULE (schedule health engine)")
     print(f"  Schedule Health Score: {ss['total_score']}/100  "
           f"Slip: {ss['slip_days']:+d}d  "
           f"Critical/near-critical: {ss['pct_activities_critical_or_near']}%")
     print()
-    print(f"CHANGE CONTROL (change engine)")
+    print("CHANGE CONTROL (change engine)")
     print(f"  Approved: {money(cs['approved_cost_impact'])}  "
           f"({cs['approved_schedule_days']:+d}d)   "
           f"Pending: {money(cs['pending_cost_exposure'])}   "
           f"Stale pending: {cs['stale_pending_count']}")
     print()
-    print(f"RISK (risk trend engine)")
+    print("RISK (risk trend engine)")
     print(f"  Risk Trajectory Score: {rs['total_score']}/100  "
           f"Exposure change: {rs['exposure_pct_change']:+.1f}%   "
           f"Effective mitigations: {rs['effective_mitigations']}/{rs['assessable_mitigations']}")
@@ -148,21 +150,12 @@ def print_report(d: dict, s: dict, c: dict, r: dict) -> None:
     print("One root cause is visible independently across all four disciplines: the")
     print("compressor rotor procurement delay (activity P1, +30 days against baseline).")
     print()
-    print(f"  - Schedule: that single activity is the reason for the programme's "
-          f"entire {ss['slip_days']}-day slip, and {ss['pct_activities_critical_or_near']}% "
-          f"of activities are now critical or near-critical as a direct result.")
+    schedule_obs, cost_obs, risk_obs = _integrated_observations(d, s, c)
+    print(f"  - Schedule: {schedule_obs}")
     print()
-    print(f"  - Cost: CPI has fallen to {ds['cpi']:.2f} over the same window the delay "
-          f"unfolded, and {money(cs['approved_cost_impact'])} of the approved change "
-          f"impact ({cs['approved_schedule_days']:+d} net days) is the cost of "
-          f"responding to it, chiefly the expedited air-freight change that clawed "
-          f"back schedule at a cost.")
+    print(f"  - Cost: {cost_obs}")
     print()
-    print("  - Risk: the procurement-capacity risk (R01) was already flagged and "
-          "escalating months before the delay materialized, and its mitigation "
-          "closed after the risk had already converted into an actual schedule "
-          "hit, a live example of exactly what a risk register tracked as a trend "
-          "is supposed to catch, and a single snapshot would have missed.")
+    print(f"  - Risk: {risk_obs}")
     print()
     print("None of this is a new predictive model. It's the same four independent")
     print("computations, run against the same programme, agreeing with each other.")
@@ -175,19 +168,20 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
     ts = d["ts"]
     actuals = dash.actuals_only(ts)
     ax.plot(ts["period_label"].to_numpy(), ts["planned_value_cum"].to_numpy(),
-            label="Planned (PV)", color=SERIES_1, linewidth=2)
+            label="Planned (PV)", color=chart_style.SERIES_1, linewidth=2)
     ax.plot(actuals["period_label"].to_numpy(), actuals["earned_value_cum"].to_numpy(),
-            label="Earned (EV)", color=SERIES_2, linewidth=2, marker="o", markersize=4)
+            label="Earned (EV)", color=chart_style.SERIES_2, linewidth=2, marker="o", markersize=4)
     ax.plot(actuals["period_label"].to_numpy(), actuals["actual_cost_cum"].to_numpy(),
-            label="Actual (AC)", color=SERIES_3, linewidth=2, marker="o", markersize=4)
+            label="Actual (AC)", color=chart_style.SERIES_3, linewidth=2, marker="o", markersize=4)
     ax.set_title("Cost / EVM")
     ax.legend(fontsize=8)
-    ax.grid(color=GRID, linewidth=0.6)
+    ax.grid(color=chart_style.GRID, linewidth=0.6)
     ax.tick_params(axis="x", rotation=30)
 
     ax = axes[0, 1]
     comparison = s["comparison"]
-    colors = {"CRITICAL": STATUS_CRITICAL, "near-critical": STATUS_WARNING, "ok": STATUS_GOOD}
+    colors = {"CRITICAL": chart_style.STATUS_CRITICAL, "near-critical": chart_style.STATUS_WARNING,
+              "ok": chart_style.STATUS_GOOD}
     for i, row in enumerate(comparison.sort_values("current_start").itertuples()):
         tag = "CRITICAL" if row.is_critical else ("near-critical" if row.is_near_critical else "ok")
         start_num = mdates.date2num(row.current_start)
@@ -203,26 +197,26 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
     ax = axes[1, 0]
     cum = c["cum"]
     ax.step(cum["date_decided"].to_numpy(), cum["cum_cost"].to_numpy(), where="post",
-            color=SERIES_1, linewidth=2)
-    ax.scatter(cum["date_decided"].to_numpy(), cum["cum_cost"].to_numpy(), color=SERIES_1, s=20)
-    ax.axhline(0, color=INK, linewidth=0.8, alpha=0.6)
+            color=chart_style.SERIES_1, linewidth=2)
+    ax.scatter(cum["date_decided"].to_numpy(), cum["cum_cost"].to_numpy(), color=chart_style.SERIES_1, s=20)
+    ax.axhline(0, color=chart_style.INK, linewidth=0.8, alpha=0.6)
     ax.set_title("Cumulative Approved Change Cost")
-    ax.grid(color=GRID, linewidth=0.6)
+    ax.grid(color=chart_style.GRID, linewidth=0.6)
     ax.tick_params(axis="x", rotation=30)
 
     ax = axes[1, 1]
     trend = r["exposure_trend"]
     ax.plot(trend["snapshot_date"].to_numpy(), trend["total_exposure"].to_numpy(),
-            color=SERIES_1, linewidth=2, marker="o")
+            color=chart_style.SERIES_1, linewidth=2, marker="o")
     ax.set_title("Portfolio Risk Exposure")
-    ax.grid(color=GRID, linewidth=0.6)
+    ax.grid(color=chart_style.GRID, linewidth=0.6)
     ax.tick_params(axis="x", rotation=30)
 
-    _apply_chrome(fig, axes)
+    chart_style.apply_chrome(fig, axes)
     fig.suptitle("Ridgeline LNG Compressor Station Retrofit — Four Disciplines, One Programme",
-                 fontsize=13, color=INK)
+                 fontsize=13, color=chart_style.INK)
     fig.tight_layout()
-    fig.savefig(os.path.join(ASSETS_DIR, "integrated_summary.png"), dpi=140, facecolor=CHART_BG)
+    fig.savefig(os.path.join(ASSETS_DIR, "integrated_summary.png"), dpi=140, facecolor=chart_style.CHART_BG)
     plt.close(fig)
 
 
@@ -230,6 +224,7 @@ def write_report_markdown(d: dict, s: dict, c: dict, r: dict) -> None:
     ds, ss, cs, rs = d["summary"], s["score"], c["stats"], r["score"]
     forecast_finish, change_summary = d["forecast_finish"], d["change_summary"]
     forecast_str = forecast_finish.strftime("%Y-%m-%d") if forecast_finish is not None else "not yet forecastable"
+    schedule_obs, cost_obs, risk_obs = _integrated_observations(d, s, c)
     lines = [
         "# Integrated Programme Status Report",
         "",
@@ -248,16 +243,9 @@ def write_report_markdown(d: dict, s: dict, c: dict, r: dict) -> None:
         f"One root cause is visible independently across all four disciplines: the "
         f"compressor rotor procurement delay (activity P1, +30 days against baseline).",
         "",
-        f"- **Schedule:** that single activity is the reason for the programme's entire "
-        f"{ss['slip_days']}-day slip, and {ss['pct_activities_critical_or_near']}% of "
-        f"activities are now critical or near-critical as a direct result.",
-        f"- **Cost:** CPI has fallen to {ds['cpi']:.2f} over the same window the delay "
-        f"unfolded, and {money(cs['approved_cost_impact'])} of the approved change impact "
-        f"({cs['approved_schedule_days']:+d} net days) is the cost of responding to it, "
-        f"chiefly the expedited air-freight change that clawed back schedule at a cost.",
-        f"- **Risk:** the procurement-capacity risk (R01) was already flagged and "
-        f"escalating months before the delay materialized, and its mitigation closed "
-        f"after the risk had already converted into an actual schedule hit.",
+        f"- **Schedule:** {schedule_obs}",
+        f"- **Cost:** {cost_obs}",
+        f"- **Risk:** {risk_obs}",
         "",
         "No new predictive model. The same four independent computations, run against "
         "the same programme, agreeing with each other.",

@@ -20,7 +20,11 @@ def add_cycle_and_aging(changes: pd.DataFrame, status_date: str) -> pd.DataFrame
     df = changes.copy()
     status_dt = pd.Timestamp(status_date)
 
-    decided = df["status"] != "Pending"
+    # A change is "decided" when it actually has a decision date, not merely
+    # whenever its status isn't "Pending" -- that would also catch any other
+    # non-pending-but-undecided status (e.g. "Cancelled", "On Hold") and leave
+    # cycle_days as NaN for those rows.
+    decided = df["date_decided"].notna()
     df["cycle_days"] = pd.NA
     df.loc[decided, "cycle_days"] = (df.loc[decided, "date_decided"] - df.loc[decided, "date_raised"]).dt.days
 
@@ -43,7 +47,9 @@ def summary_stats(changes: pd.DataFrame) -> dict:
     approved = changes[changes["status"] == "Approved"]
     rejected = changes[changes["status"] == "Rejected"]
     pending = changes[changes["status"] == "Pending"]
-    decided = changes[changes["status"] != "Pending"]
+    # Same "decided" definition as add_cycle_and_aging: has an actual decision
+    # date, rather than merely a status other than "Pending".
+    decided = changes[changes["date_decided"].notna()]
 
     approval_rate = len(approved) / len(decided) * 100 if len(decided) else float("nan")
     cycle_values = decided["cycle_days"].dropna().astype(float)
