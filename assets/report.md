@@ -8,7 +8,7 @@
 | Forecast (SPI-based) | Finish 2026-09-10, revised budget $2,457,000 |
 | Schedule | Health Score 38.3/100, slip +30d |
 | Change Control | Approved $57,000 (-5d) |
-| Risk | Trajectory Score 83.3/100, exposure +111.1% |
+| Risk | Trajectory Score 83.3/100, exposure +0.0% (basis for score; raw incl. churn +111.1%) |
 
 ## Integrated Observations
 

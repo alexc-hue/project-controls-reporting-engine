@@ -16,15 +16,17 @@ Run:
 """
 
 import os
+from typing import NamedTuple
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
 from engines import chart_style
-from engines.dashboard import metrics as dash
-from engines.schedule import metrics as sched
-from engines.change import metrics as chg
-from engines.risk import metrics as risk
+from engines.dashboard import metrics as dash_metrics
+from engines.schedule import metrics as sched_metrics
+from engines.change import metrics as chg_metrics
+from engines.risk import metrics as risk_metrics
+from engines.formatting import money
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
@@ -35,19 +37,14 @@ PLANNED_FINISH = "2026-08-03"
 STATUS_DATE = "2026-08-01"
 
 
-def money(x: float) -> str:
-    sign = "-" if x < 0 else ""
-    return f"{sign}${abs(x):,.0f}"
-
-
 def run_dashboard_engine():
-    ts = dash.load_timeseries(os.path.join(DATA_DIR, "cost_schedule_timeseries.csv"))
-    milestones = dash.load_milestones(os.path.join(DATA_DIR, "milestones.csv"))
-    risks = dash.load_risk_register(os.path.join(DATA_DIR, "risk_register.csv"), STATUS_DATE)
-    changes = dash.load_change_register(os.path.join(DATA_DIR, "change_register.csv"))
-    summary = dash.project_summary(ts, BAC)
-    forecast_finish = dash.forecast_completion_date(summary["spi"], PROJECT_START, PLANNED_FINISH)
-    change_summary = dash.change_impact_summary(changes, BAC)
+    ts = dash_metrics.load_timeseries(os.path.join(DATA_DIR, "cost_schedule_timeseries.csv"))
+    milestones = dash_metrics.load_milestones(os.path.join(DATA_DIR, "milestones.csv"))
+    risks = dash_metrics.load_risk_register(os.path.join(DATA_DIR, "risk_register.csv"), STATUS_DATE)
+    changes = dash_metrics.load_change_register(os.path.join(DATA_DIR, "change_register.csv"))
+    summary = dash_metrics.project_summary(ts, BAC)
+    forecast_finish = dash_metrics.forecast_completion_date(summary["spi"], PROJECT_START, PLANNED_FINISH)
+    change_summary = dash_metrics.change_impact_summary(changes, BAC)
     return {
         "ts": ts, "milestones": milestones, "risks": risks, "changes": changes,
         "summary": summary, "forecast_finish": forecast_finish, "change_summary": change_summary,
@@ -55,70 +52,85 @@ def run_dashboard_engine():
 
 
 def run_schedule_engine():
-    activities = sched.load_activities(os.path.join(DATA_DIR, "activities.csv"))
-    baseline, current = sched.run_baseline_and_current(activities, PROJECT_START)
-    comparison = sched.compare_schedules(activities, baseline, current)
-    score = sched.schedule_health_score(comparison, baseline.project_finish, current.project_finish)
+    activities = sched_metrics.load_activities(os.path.join(DATA_DIR, "activities.csv"))
+    baseline, current = sched_metrics.run_baseline_and_current(activities, PROJECT_START)
+    comparison = sched_metrics.compare_schedules(activities, baseline, current)
+    score = sched_metrics.schedule_health_score(comparison, baseline.project_finish, current.project_finish)
     return {"baseline": baseline, "current": current, "comparison": comparison, "score": score}
 
 
 def run_change_engine():
-    raw = chg.load_change_log(os.path.join(DATA_DIR, "change_log.csv"))
-    changes = chg.add_cycle_and_aging(raw, STATUS_DATE)
-    cum = chg.cumulative_impact(changes)
-    stats = chg.summary_stats(changes)
+    raw = chg_metrics.load_change_log(os.path.join(DATA_DIR, "change_log.csv"))
+    changes = chg_metrics.add_cycle_and_aging(raw, STATUS_DATE)
+    cum = chg_metrics.cumulative_impact(changes)
+    stats = chg_metrics.summary_stats(changes)
     return {"changes": changes, "cum": cum, "stats": stats}
 
 
 def run_risk_engine():
-    snapshots = risk.load_snapshots(os.path.join(DATA_DIR, "risk_snapshots.csv"))
-    exposure_trend = risk.portfolio_exposure_trend(snapshots)
+    snapshots = risk_metrics.load_snapshots(os.path.join(DATA_DIR, "risk_snapshots.csv"))
+    exposure_trend = risk_metrics.portfolio_exposure_trend(snapshots)
     latest = snapshots["snapshot_date"].max()
-    trajectory = risk.per_risk_trajectory(snapshots, latest)
-    effectiveness = risk.mitigation_effectiveness(snapshots)
-    score = risk.risk_trajectory_score(exposure_trend, effectiveness, snapshots)
+    trajectory = risk_metrics.per_risk_trajectory(snapshots, latest)
+    effectiveness = risk_metrics.mitigation_effectiveness(snapshots)
+    score = risk_metrics.risk_trajectory_score(effectiveness, snapshots)
     return {"exposure_trend": exposure_trend, "trajectory": trajectory,
             "effectiveness": effectiveness, "score": score}
 
 
-def _integrated_observations(d: dict, s: dict, c: dict) -> tuple[str, str, str]:
-    """The three per-discipline observation sentences, shared by the console
-    report and the markdown writer so they can't drift out of sync with each
-    other (they had: the markdown version was silently dropping a clause the
-    console version kept)."""
-    ds, ss, cs = d["summary"], s["score"], c["stats"]
+class IntegratedObservations(NamedTuple):
+    schedule: str
+    cost: str
+    risk: str
+
+
+# Fixed narrative, not computed from any run's data: this programme's risk
+# register genuinely did flag R01 (procurement capacity) well before the
+# delay landed, so this observation doesn't need to be dynamic the way the
+# schedule/cost ones do.
+RISK_OBSERVATION = (
+    "the procurement-capacity risk (R01) was already flagged and "
+    "escalating months before the delay materialized, and its mitigation "
+    "closed after the risk had already converted into an actual schedule "
+    "hit, a live example of exactly what a risk register tracked as a trend "
+    "is supposed to catch, and a single snapshot would have missed."
+)
+
+
+def _forecast_str(forecast_finish) -> str:
+    return forecast_finish.strftime("%Y-%m-%d") if forecast_finish is not None else "not yet forecastable"
+
+
+def _integrated_observations(dash_summary: dict, sched_score: dict, chg_stats: dict) -> IntegratedObservations:
+    """The schedule/cost observation sentences, shared by the console report
+    and the markdown writer so they can't drift out of sync with each other
+    -- they had drifted before, when the markdown version silently dropped a
+    clause the console version kept."""
     schedule_obs = (
         f"that single activity is the reason for the programme's entire "
-        f"{ss['slip_days']}-day slip, and {ss['pct_activities_critical_or_near']}% "
+        f"{sched_score['slip_days']}-day slip, and {sched_score['pct_activities_critical_or_near']}% "
         f"of activities are now critical or near-critical as a direct result."
     )
     cost_obs = (
-        f"CPI has fallen to {ds['cpi']:.2f} over the same window the delay "
-        f"unfolded, and {money(cs['approved_cost_impact'])} of the approved change "
-        f"impact ({cs['approved_schedule_days']:+d} net days) is the cost of "
+        f"CPI has fallen to {dash_summary['cpi']:.2f} over the same window the delay "
+        f"unfolded, and {money(chg_stats['approved_cost_impact'])} of the approved change "
+        f"impact ({chg_stats['approved_schedule_days']:+d} net days) is the cost of "
         f"responding to it, chiefly the expedited air-freight change that clawed "
         f"back schedule at a cost."
     )
-    risk_obs = (
-        "the procurement-capacity risk (R01) was already flagged and "
-        "escalating months before the delay materialized, and its mitigation "
-        "closed after the risk had already converted into an actual schedule "
-        "hit, a live example of exactly what a risk register tracked as a trend "
-        "is supposed to catch, and a single snapshot would have missed."
-    )
-    return schedule_obs, cost_obs, risk_obs
+    return IntegratedObservations(schedule_obs, cost_obs, RISK_OBSERVATION)
 
 
-def print_report(d: dict, s: dict, c: dict, r: dict) -> None:
-    ds, ss, cs, rs = d["summary"], s["score"], c["stats"], r["score"]
+def print_report(dash: dict, sched: dict, chg: dict, rsk: dict, obs: IntegratedObservations) -> None:
+    ds, ss, cs, rs = dash["summary"], sched["score"], chg["stats"], rsk["score"]
 
     print("=" * 68)
     print("INTEGRATED PROGRAMME STATUS REPORT")
     print("Ridgeline LNG Compressor Station Retrofit — as of", STATUS_DATE)
     print("=" * 68)
     print()
-    forecast_finish, change_summary = d["forecast_finish"], d["change_summary"]
-    forecast_str = forecast_finish.strftime("%Y-%m-%d") if forecast_finish is not None else "not yet forecastable"
+    forecast_finish, change_summary = dash["forecast_finish"], dash["change_summary"]
+    forecast_str = _forecast_str(forecast_finish)
 
     print("COST / EVM (dashboard engine)")
     print(f"  SPI {ds['spi']:.2f}  CPI {ds['cpi']:.2f}  EAC {money(ds['eac'])}  "
@@ -139,8 +151,9 @@ def print_report(d: dict, s: dict, c: dict, r: dict) -> None:
     print()
     print("RISK (risk trend engine)")
     print(f"  Risk Trajectory Score: {rs['total_score']}/100  "
-          f"Exposure change: {rs['exposure_pct_change']:+.1f}%   "
           f"Effective mitigations: {rs['effective_mitigations']}/{rs['assessable_mitigations']}")
+    print(f"  Exposure change: {rs['shared_exposure_pct_change']:+.1f}% (shared-risk basis for the "
+          f"score above; raw incl. register churn: {rs['exposure_pct_change']:+.1f}%)")
 
     print()
     print("-" * 68)
@@ -150,23 +163,22 @@ def print_report(d: dict, s: dict, c: dict, r: dict) -> None:
     print("One root cause is visible independently across all four disciplines: the")
     print("compressor rotor procurement delay (activity P1, +30 days against baseline).")
     print()
-    schedule_obs, cost_obs, risk_obs = _integrated_observations(d, s, c)
-    print(f"  - Schedule: {schedule_obs}")
+    print(f"  - Schedule: {obs.schedule}")
     print()
-    print(f"  - Cost: {cost_obs}")
+    print(f"  - Cost: {obs.cost}")
     print()
-    print(f"  - Risk: {risk_obs}")
+    print(f"  - Risk: {obs.risk}")
     print()
     print("None of this is a new predictive model. It's the same four independent")
     print("computations, run against the same programme, agreeing with each other.")
 
 
-def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
+def chart_integrated_summary(dash: dict, sched: dict, chg: dict, rsk: dict) -> None:
     fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 
     ax = axes[0, 0]
-    ts = d["ts"]
-    actuals = dash.actuals_only(ts)
+    ts = dash["ts"]
+    actuals = dash_metrics.actuals_only(ts)
     ax.plot(ts["period_label"].to_numpy(), ts["planned_value_cum"].to_numpy(),
             label="Planned (PV)", color=chart_style.SERIES_1, linewidth=2)
     ax.plot(actuals["period_label"].to_numpy(), actuals["earned_value_cum"].to_numpy(),
@@ -179,7 +191,7 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
     ax.tick_params(axis="x", rotation=30)
 
     ax = axes[0, 1]
-    comparison = s["comparison"]
+    comparison = sched["comparison"]
     colors = {"CRITICAL": chart_style.STATUS_CRITICAL, "near-critical": chart_style.STATUS_WARNING,
               "ok": chart_style.STATUS_GOOD}
     for i, row in enumerate(comparison.sort_values("current_start").itertuples()):
@@ -195,7 +207,7 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
     ax.tick_params(axis="x", rotation=30)
 
     ax = axes[1, 0]
-    cum = c["cum"]
+    cum = chg["cum"]
     ax.step(cum["date_decided"].to_numpy(), cum["cum_cost"].to_numpy(), where="post",
             color=chart_style.SERIES_1, linewidth=2)
     ax.scatter(cum["date_decided"].to_numpy(), cum["cum_cost"].to_numpy(), color=chart_style.SERIES_1, s=20)
@@ -205,7 +217,7 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
     ax.tick_params(axis="x", rotation=30)
 
     ax = axes[1, 1]
-    trend = r["exposure_trend"]
+    trend = rsk["exposure_trend"]
     ax.plot(trend["snapshot_date"].to_numpy(), trend["total_exposure"].to_numpy(),
             color=chart_style.SERIES_1, linewidth=2, marker="o")
     ax.set_title("Portfolio Risk Exposure")
@@ -220,11 +232,10 @@ def chart_integrated_summary(d: dict, s: dict, c: dict, r: dict) -> None:
     plt.close(fig)
 
 
-def write_report_markdown(d: dict, s: dict, c: dict, r: dict) -> None:
-    ds, ss, cs, rs = d["summary"], s["score"], c["stats"], r["score"]
-    forecast_finish, change_summary = d["forecast_finish"], d["change_summary"]
-    forecast_str = forecast_finish.strftime("%Y-%m-%d") if forecast_finish is not None else "not yet forecastable"
-    schedule_obs, cost_obs, risk_obs = _integrated_observations(d, s, c)
+def write_report_markdown(dash: dict, sched: dict, chg: dict, rsk: dict, obs: IntegratedObservations) -> None:
+    ds, ss, cs, rs = dash["summary"], sched["score"], chg["stats"], rsk["score"]
+    forecast_finish, change_summary = dash["forecast_finish"], dash["change_summary"]
+    forecast_str = _forecast_str(forecast_finish)
     lines = [
         "# Integrated Programme Status Report",
         "",
@@ -236,16 +247,17 @@ def write_report_markdown(d: dict, s: dict, c: dict, r: dict) -> None:
         f"| Forecast (SPI-based) | Finish {forecast_str}, revised budget {money(change_summary['revised_budget'])} |",
         f"| Schedule | Health Score {ss['total_score']}/100, slip {ss['slip_days']:+d}d |",
         f"| Change Control | Approved {money(cs['approved_cost_impact'])} ({cs['approved_schedule_days']:+d}d) |",
-        f"| Risk | Trajectory Score {rs['total_score']}/100, exposure {rs['exposure_pct_change']:+.1f}% |",
+        f"| Risk | Trajectory Score {rs['total_score']}/100, exposure {rs['shared_exposure_pct_change']:+.1f}% "
+        f"(basis for score; raw incl. churn {rs['exposure_pct_change']:+.1f}%) |",
         "",
         "## Integrated Observations",
         "",
         f"One root cause is visible independently across all four disciplines: the "
         f"compressor rotor procurement delay (activity P1, +30 days against baseline).",
         "",
-        f"- **Schedule:** {schedule_obs}",
-        f"- **Cost:** {cost_obs}",
-        f"- **Risk:** {risk_obs}",
+        f"- **Schedule:** {obs.schedule}",
+        f"- **Cost:** {obs.cost}",
+        f"- **Risk:** {obs.risk}",
         "",
         "No new predictive model. The same four independent computations, run against "
         "the same programme, agreeing with each other.",
@@ -258,14 +270,15 @@ def write_report_markdown(d: dict, s: dict, c: dict, r: dict) -> None:
 def main() -> None:
     os.makedirs(ASSETS_DIR, exist_ok=True)
 
-    d = run_dashboard_engine()
-    s = run_schedule_engine()
-    c = run_change_engine()
-    r = run_risk_engine()
+    dash_result = run_dashboard_engine()
+    sched_result = run_schedule_engine()
+    chg_result = run_change_engine()
+    rsk_result = run_risk_engine()
+    obs = _integrated_observations(dash_result["summary"], sched_result["score"], chg_result["stats"])
 
-    print_report(d, s, c, r)
-    chart_integrated_summary(d, s, c, r)
-    write_report_markdown(d, s, c, r)
+    print_report(dash_result, sched_result, chg_result, rsk_result, obs)
+    chart_integrated_summary(dash_result, sched_result, chg_result, rsk_result)
+    write_report_markdown(dash_result, sched_result, chg_result, rsk_result, obs)
 
     print("-" * 68)
     print(f"Integrated chart and report.md saved to {ASSETS_DIR}")

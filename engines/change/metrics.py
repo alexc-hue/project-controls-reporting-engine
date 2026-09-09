@@ -11,6 +11,13 @@ import pandas as pd
 STALE_PENDING_DAYS = 30  # a pending change open longer than this gets flagged
 
 
+def _is_decided(df: pd.DataFrame) -> pd.Series:
+    """A change is "decided" when it actually has a decision date, not merely
+    whenever its status isn't "Pending" -- that would also catch any other
+    non-pending-but-undecided status (e.g. "Cancelled", "On Hold")."""
+    return df["date_decided"].notna()
+
+
 def load_change_log(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, parse_dates=["date_raised", "date_decided"])
     return df.sort_values("date_raised").reset_index(drop=True)
@@ -20,11 +27,11 @@ def add_cycle_and_aging(changes: pd.DataFrame, status_date: str) -> pd.DataFrame
     df = changes.copy()
     status_dt = pd.Timestamp(status_date)
 
-    # A change is "decided" when it actually has a decision date, not merely
-    # whenever its status isn't "Pending" -- that would also catch any other
-    # non-pending-but-undecided status (e.g. "Cancelled", "On Hold") and leave
-    # cycle_days as NaN for those rows.
-    decided = df["date_decided"].notna()
+    # See _is_decided() below: a change is "decided" when it has an actual
+    # decision date, not merely whenever its status isn't "Pending" (which
+    # would also catch e.g. "Cancelled"/"On Hold" and leave cycle_days as NaN
+    # for those rows).
+    decided = _is_decided(df)
     df["cycle_days"] = pd.NA
     df.loc[decided, "cycle_days"] = (df.loc[decided, "date_decided"] - df.loc[decided, "date_raised"]).dt.days
 
@@ -47,9 +54,8 @@ def summary_stats(changes: pd.DataFrame) -> dict:
     approved = changes[changes["status"] == "Approved"]
     rejected = changes[changes["status"] == "Rejected"]
     pending = changes[changes["status"] == "Pending"]
-    # Same "decided" definition as add_cycle_and_aging: has an actual decision
-    # date, rather than merely a status other than "Pending".
-    decided = changes[changes["date_decided"].notna()]
+    # Same _is_decided() definition used in add_cycle_and_aging.
+    decided = changes[_is_decided(changes)]
 
     approval_rate = len(approved) / len(decided) * 100 if len(decided) else float("nan")
     cycle_values = decided["cycle_days"].dropna().astype(float)
