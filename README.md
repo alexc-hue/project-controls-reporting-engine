@@ -53,8 +53,8 @@ already published in the four standalone tools, copied unchanged so this
 repo is self-contained and runnable without cloning the other four
 alongside it. No new EVM, CPM, change-tracking, or risk-scoring logic
 exists anywhere in this repo, the only new code is the orchestration script
-that calls all four and the one unified dataset that feeds them
-consistently.
+that calls all four, a small chart-style/formatting layer shared with the
+other five repos, and the one unified dataset that feeds them consistently.
 
 ## Result
 
@@ -65,7 +65,7 @@ Ridgeline LNG Compressor Station Retrofit — as of 2026-08-01
 ====================================================================
 
 COST / EVM (dashboard engine)
-  SPI 0.85  CPI 0.91  EAC $2,637,363  VAC $-237,363
+  SPI 0.85  CPI 0.91  EAC $2,637,363  VAC -$237,363
   SPI-based forecast finish: 2026-09-10   Revised budget (BAC + approved changes): $2,457,000
 
 SCHEDULE (schedule health engine)
@@ -75,7 +75,8 @@ CHANGE CONTROL (change engine)
   Approved: $57,000  (-5d)   Pending: $22,000   Stale pending: 0
 
 RISK (risk trend engine)
-  Risk Trajectory Score: 83.3/100  Exposure change: +0.0%   Effective mitigations: 2/3
+  Risk Trajectory Score: 83.3/100  Effective mitigations: 2/3
+  Exposure change: +0.0% (shared-risk basis for the score above; raw incl. register churn: +111.1%)
 ```
 
 Followed by the Integrated Observations section connecting the four
