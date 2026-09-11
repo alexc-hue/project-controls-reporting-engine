@@ -1,5 +1,7 @@
 # Project Controls Reporting Engine
 
+![CI](https://github.com/alexc-hue/project-controls-reporting-engine/actions/workflows/tests.yml/badge.svg)
+
 Composes the four tools in the project-controls toolkit, EVM dashboard,
 schedule health, change control, and risk trend, against one consistent
 programme, and produces a single integrated status report showing how the
