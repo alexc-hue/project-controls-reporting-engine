@@ -129,4 +129,6 @@ python reporting_engine.py
 Swap in your own `data/*.csv` files (same schemas as the four standalone
 tools, see their READMEs) describing one real programme to point this at
 it. All four engines will run against whatever story the data actually
-tells.
+tells. The `BAC`/`PROJECT_START`/`PLANNED_FINISH`/`STATUS_DATE` constants
+near the top of `reporting_engine.py` are this fictional programme's
+assumptions too, not read from the CSVs, so update those by hand as well.

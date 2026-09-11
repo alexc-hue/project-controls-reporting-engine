@@ -16,7 +16,7 @@ Run:
 """
 
 import os
-from typing import NamedTuple
+from typing import Callable, NamedTuple
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
@@ -31,6 +31,11 @@ from engines.formatting import money
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
 
+# Edit these to match your own programme -- see README ("point this at your
+# own data"). They aren't read from the CSVs: BAC/PROJECT_START/
+# PLANNED_FINISH/STATUS_DATE are this fictional programme's assumptions, and
+# swapping in your own CSVs without also updating these will compute a real
+# programme against the wrong budget, dates, and status cutoff.
 BAC = 2_400_000
 PROJECT_START = "2026-01-05"
 PLANNED_FINISH = "2026-08-03"
@@ -78,6 +83,26 @@ def run_risk_engine():
             "effectiveness": effectiveness, "score": score}
 
 
+def _run_engine(label: str, files_needed: str, fn: Callable[[], dict]) -> dict:
+    """Run one engine, turning a missing/malformed data file into a clear,
+    named error instead of letting a raw traceback abort the whole report
+    even though the other three engines may well have already succeeded."""
+    try:
+        return fn()
+    except FileNotFoundError as exc:
+        raise SystemExit(
+            f"Cannot build the integrated report: the {label} engine couldn't find "
+            f"{exc.filename!r}. Needs: {files_needed} in {DATA_DIR}. See the README "
+            f"for what each engine's CSV(s) require."
+        ) from exc
+    except KeyError as exc:
+        raise SystemExit(
+            f"Cannot build the integrated report: the {label} engine's data is missing "
+            f"an expected column ({exc}). Needs: {files_needed} in {DATA_DIR}, with the "
+            f"same columns as the standalone tool's README describes."
+        ) from exc
+
+
 class IntegratedObservations(NamedTuple):
     schedule: str
     cost: str
@@ -122,7 +147,7 @@ def _integrated_observations(dash_summary: dict, sched_score: dict, chg_stats: d
 
 
 def print_report(dash: dict, sched: dict, chg: dict, rsk: dict, obs: IntegratedObservations) -> None:
-    ds, ss, cs, rs = dash["summary"], sched["score"], chg["stats"], rsk["score"]
+    dash_summary, sched_score, chg_stats, risk_score = dash["summary"], sched["score"], chg["stats"], rsk["score"]
 
     print("=" * 68)
     print("INTEGRATED PROGRAMME STATUS REPORT")
@@ -133,27 +158,27 @@ def print_report(dash: dict, sched: dict, chg: dict, rsk: dict, obs: IntegratedO
     forecast_str = _forecast_str(forecast_finish)
 
     print("COST / EVM (dashboard engine)")
-    print(f"  SPI {ds['spi']:.2f}  CPI {ds['cpi']:.2f}  EAC {money(ds['eac'])}  "
-          f"VAC {money(ds['vac'])}")
+    print(f"  SPI {dash_summary['spi']:.2f}  CPI {dash_summary['cpi']:.2f}  EAC {money(dash_summary['eac'])}  "
+          f"VAC {money(dash_summary['vac'])}")
     print(f"  SPI-based forecast finish: {forecast_str}   "
           f"Revised budget (BAC + approved changes): {money(change_summary['revised_budget'])}")
     print()
     print("SCHEDULE (schedule health engine)")
-    print(f"  Schedule Health Score: {ss['total_score']}/100  "
-          f"Slip: {ss['slip_days']:+d}d  "
-          f"Critical/near-critical: {ss['pct_activities_critical_or_near']}%")
+    print(f"  Schedule Health Score: {sched_score['total_score']}/100  "
+          f"Slip: {sched_score['slip_days']:+d}d  "
+          f"Critical/near-critical: {sched_score['pct_activities_critical_or_near']}%")
     print()
     print("CHANGE CONTROL (change engine)")
-    print(f"  Approved: {money(cs['approved_cost_impact'])}  "
-          f"({cs['approved_schedule_days']:+d}d)   "
-          f"Pending: {money(cs['pending_cost_exposure'])}   "
-          f"Stale pending: {cs['stale_pending_count']}")
+    print(f"  Approved: {money(chg_stats['approved_cost_impact'])}  "
+          f"({chg_stats['approved_schedule_days']:+d}d)   "
+          f"Pending: {money(chg_stats['pending_cost_exposure'])}   "
+          f"Stale pending: {chg_stats['stale_pending_count']}")
     print()
     print("RISK (risk trend engine)")
-    print(f"  Risk Trajectory Score: {rs['total_score']}/100  "
-          f"Effective mitigations: {rs['effective_mitigations']}/{rs['assessable_mitigations']}")
-    print(f"  Exposure change: {rs['shared_exposure_pct_change']:+.1f}% (shared-risk basis for the "
-          f"score above; raw incl. register churn: {rs['exposure_pct_change']:+.1f}%)")
+    print(f"  Risk Trajectory Score: {risk_score['total_score']}/100  "
+          f"Effective mitigations: {risk_score['effective_mitigations']}/{risk_score['assessable_mitigations']}")
+    print(f"  Exposure change: {risk_score['shared_exposure_pct_change']:+.1f}% (shared-risk basis for the "
+          f"score above; raw incl. register churn: {risk_score['exposure_pct_change']:+.1f}%)")
 
     print()
     print("-" * 68)
@@ -233,7 +258,7 @@ def chart_integrated_summary(dash: dict, sched: dict, chg: dict, rsk: dict) -> N
 
 
 def write_report_markdown(dash: dict, sched: dict, chg: dict, rsk: dict, obs: IntegratedObservations) -> None:
-    ds, ss, cs, rs = dash["summary"], sched["score"], chg["stats"], rsk["score"]
+    dash_summary, sched_score, chg_stats, risk_score = dash["summary"], sched["score"], chg["stats"], rsk["score"]
     forecast_finish, change_summary = dash["forecast_finish"], dash["change_summary"]
     forecast_str = _forecast_str(forecast_finish)
     lines = [
@@ -243,12 +268,12 @@ def write_report_markdown(dash: dict, sched: dict, chg: dict, rsk: dict, obs: In
         "",
         "| Discipline | Headline |",
         "|---|---|",
-        f"| Cost / EVM | SPI {ds['spi']:.2f}, CPI {ds['cpi']:.2f}, EAC {money(ds['eac'])} |",
+        f"| Cost / EVM | SPI {dash_summary['spi']:.2f}, CPI {dash_summary['cpi']:.2f}, EAC {money(dash_summary['eac'])} |",
         f"| Forecast (SPI-based) | Finish {forecast_str}, revised budget {money(change_summary['revised_budget'])} |",
-        f"| Schedule | Health Score {ss['total_score']}/100, slip {ss['slip_days']:+d}d |",
-        f"| Change Control | Approved {money(cs['approved_cost_impact'])} ({cs['approved_schedule_days']:+d}d) |",
-        f"| Risk | Trajectory Score {rs['total_score']}/100, exposure {rs['shared_exposure_pct_change']:+.1f}% "
-        f"(basis for score; raw incl. churn {rs['exposure_pct_change']:+.1f}%) |",
+        f"| Schedule | Health Score {sched_score['total_score']}/100, slip {sched_score['slip_days']:+d}d |",
+        f"| Change Control | Approved {money(chg_stats['approved_cost_impact'])} ({chg_stats['approved_schedule_days']:+d}d) |",
+        f"| Risk | Trajectory Score {risk_score['total_score']}/100, exposure {risk_score['shared_exposure_pct_change']:+.1f}% "
+        f"(basis for score; raw incl. churn {risk_score['exposure_pct_change']:+.1f}%) |",
         "",
         "## Integrated Observations",
         "",
@@ -270,10 +295,13 @@ def write_report_markdown(dash: dict, sched: dict, chg: dict, rsk: dict, obs: In
 def main() -> None:
     os.makedirs(ASSETS_DIR, exist_ok=True)
 
-    dash_result = run_dashboard_engine()
-    sched_result = run_schedule_engine()
-    chg_result = run_change_engine()
-    rsk_result = run_risk_engine()
+    dash_result = _run_engine(
+        "dashboard", "cost_schedule_timeseries.csv, milestones.csv, risk_register.csv, change_register.csv",
+        run_dashboard_engine,
+    )
+    sched_result = _run_engine("schedule", "activities.csv", run_schedule_engine)
+    chg_result = _run_engine("change", "change_log.csv", run_change_engine)
+    rsk_result = _run_engine("risk", "risk_snapshots.csv", run_risk_engine)
     obs = _integrated_observations(dash_result["summary"], sched_result["score"], chg_result["stats"])
 
     print_report(dash_result, sched_result, chg_result, rsk_result, obs)
