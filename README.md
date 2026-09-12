@@ -1,6 +1,6 @@
 # Project Controls Reporting Engine
 
-![CI](https://github.com/alexc-hue/project-controls-reporting-engine/actions/workflows/tests.yml/badge.svg)
+![CI](https://github.com/alexc-hue/project-controls-reporting-engine/actions/workflows/tests.yml/badge.svg) [![codecov](https://codecov.io/gh/alexc-hue/project-controls-reporting-engine/graph/badge.svg)](https://codecov.io/gh/alexc-hue/project-controls-reporting-engine) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)
 
 Composes the four tools in the project-controls toolkit, EVM dashboard,
 schedule health, change control, and risk trend, against one consistent
