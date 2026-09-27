@@ -15,7 +15,6 @@ import pytest
 
 import reporting_engine as engine
 
-
 # --- _run_engine error-wrapping ---------------------------------------------
 
 def test_run_engine_returns_result_on_success():

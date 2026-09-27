@@ -16,17 +16,18 @@ Run:
 """
 
 import os
-from typing import Callable, NamedTuple
+from collections.abc import Callable
+from typing import NamedTuple
 
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 
 from engines import chart_style
-from engines.dashboard import metrics as dash_metrics
-from engines.schedule import metrics as sched_metrics
 from engines.change import metrics as chg_metrics
-from engines.risk import metrics as risk_metrics
+from engines.dashboard import metrics as dash_metrics
 from engines.formatting import money
+from engines.risk import metrics as risk_metrics
+from engines.schedule import metrics as sched_metrics
 
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
@@ -277,8 +278,8 @@ def write_report_markdown(dash: dict, sched: dict, chg: dict, rsk: dict, obs: In
         "",
         "## Integrated Observations",
         "",
-        f"One root cause is visible independently across all four disciplines: the "
-        f"compressor rotor procurement delay (activity P1, +30 days against baseline).",
+        "One root cause is visible independently across all four disciplines: the "
+        "compressor rotor procurement delay (activity P1, +30 days against baseline).",
         "",
         f"- **Schedule:** {obs.schedule}",
         f"- **Cost:** {obs.cost}",
