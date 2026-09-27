@@ -58,6 +58,10 @@ exists anywhere in this repo, the only new code is the orchestration script
 that calls all four, a small chart-style/formatting layer shared with the
 other five repos, and the one unified dataset that feeds them consistently.
 
+Each copy is listed in `engines/VENDORED.json` with the source commit it came
+from. The tests check that no copy has been edited here, and a separate CI job
+(on every push and weekly) checks that no source has moved on since.
+
 ## Result
 
 ```
