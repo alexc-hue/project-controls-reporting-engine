@@ -81,6 +81,8 @@ RISK (risk trend engine)
   Exposure change: +0.0% (shared-risk basis for the score above; raw incl. register churn: +111.1%)
 ```
 
+This block is checked in CI against what the script actually prints (see `tests/test_readme_result.py`), so it can't quietly fall out of date.
+
 Followed by the Integrated Observations section connecting the four
 findings to the same root cause. A saved copy is generated alongside the
 chart: see [assets/report.md](assets/report.md).
