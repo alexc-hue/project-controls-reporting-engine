@@ -114,6 +114,11 @@ all computed from the same underlying story.
   this fed from each tool's actual system of record (P6/MS Project, the
   cost/ERP system, the RAID log, the change register) rather than one set
   of hand-authored CSVs.
+- Size-tested with `benchmarks/size_test.py` on a 2018 laptop (Intel
+  i7-8750H, Python 3.14), single runs, so treat the numbers as a guide: with
+  every register at 1,000 rows the integrated report takes about 3 seconds,
+  at 10,000 rows about 30 seconds, at 20,000 rows about 35. Each engine
+  keeps its standalone tool's limits.
 
 ## What I learned
 
