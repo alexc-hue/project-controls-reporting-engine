@@ -220,11 +220,12 @@ def chart_integrated_summary(dash: dict, sched: dict, chg: dict, rsk: dict) -> N
     comparison = sched["comparison"]
     colors = {"CRITICAL": chart_style.STATUS_CRITICAL, "near-critical": chart_style.STATUS_WARNING,
               "ok": chart_style.STATUS_GOOD}
-    for i, row in enumerate(comparison.sort_values("current_start").itertuples()):
-        tag = "CRITICAL" if row.is_critical else ("near-critical" if row.is_near_critical else "ok")
-        start_num = mdates.date2num(row.current_start)
-        width = mdates.date2num(row.current_finish) - start_num
-        ax.barh(i, width, left=start_num, color=colors[tag], height=0.6)
+    ordered = comparison.sort_values("current_start")
+    tags = ["CRITICAL" if crit else ("near-critical" if near else "ok")
+            for crit, near in zip(ordered["is_critical"], ordered["is_near_critical"])]
+    start_num = mdates.date2num(ordered["current_start"])
+    ax.barh(range(len(ordered)), mdates.date2num(ordered["current_finish"]) - start_num, left=start_num,
+            color=[colors[t] for t in tags], height=0.6)
     ax.set_yticks([])
     ax.set_title("Schedule (current, colored by criticality)")
     handles = [plt.Rectangle((0, 0), 1, 1, color=c, label=k) for k, c in colors.items()]
