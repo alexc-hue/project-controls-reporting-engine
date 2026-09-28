@@ -140,3 +140,8 @@ it. All four engines will run against whatever story the data actually
 tells. The `BAC`/`PROJECT_START`/`PLANNED_FINISH`/`STATUS_DATE` constants
 near the top of `reporting_engine.py` are this fictional programme's
 assumptions too, not read from the CSVs, so update those by hand as well.
+
+To see how it copes with bigger generated registers, run `python
+benchmarks/size_test.py`. It prints run time and peak memory at each size.
+It's a hand-run check, not part of the test suite; measured numbers are
+under Limitations.
