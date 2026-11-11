@@ -7,12 +7,17 @@ schedule health, change control, and risk trend, against one consistent
 programme, and produces a single integrated status report showing how the
 four disciplines' independent findings relate to each other.
 
-Part of a small project-controls toolkit:
+The project-controls toolkit is six tools:
 [project-controls-dashboard](https://github.com/alexc-hue/project-controls-dashboard),
 [schedule-health-analyzer](https://github.com/alexc-hue/schedule-health-analyzer),
 [change-control-register](https://github.com/alexc-hue/change-control-register),
 [risk-trend-tracker](https://github.com/alexc-hue/risk-trend-tracker),
-**project-controls-reporting-engine** (this repo).
+**project-controls-reporting-engine** (this repo),
+[recovery-scenario-planner](https://github.com/alexc-hue/recovery-scenario-planner).
+Two separate practice models apply the same methods to data center
+delivery, on synthetic data:
+[commissioning-readiness-gate](https://github.com/alexc-hue/commissioning-readiness-gate),
+[facility-status-digital-twin](https://github.com/alexc-hue/facility-status-digital-twin).
 
 ![Integrated summary](assets/integrated_summary.png)
 
@@ -67,7 +72,7 @@ from. The tests check that no copy has been edited here, and a separate CI job
 ```
 ====================================================================
 INTEGRATED PROGRAMME STATUS REPORT
-Ridgeline LNG Compressor Station Retrofit — as of 2026-08-01
+Ridgeline LNG Compressor Station Retrofit, as of 2026-08-01
 ====================================================================
 
 COST / EVM (dashboard engine)
@@ -93,7 +98,7 @@ chart: see [assets/report.md](assets/report.md).
 
 ## Screenshots
 
-**Four disciplines, one programme** — cost/EVM, current schedule by
+**Four disciplines, one programme:** cost/EVM, current schedule by
 criticality, cumulative approved change cost, and portfolio risk exposure,
 all computed from the same underlying story.
 

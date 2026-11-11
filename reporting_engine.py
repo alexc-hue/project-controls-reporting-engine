@@ -152,7 +152,7 @@ def print_report(dash: dict, sched: dict, chg: dict, rsk: dict, obs: IntegratedO
 
     print("=" * 68)
     print("INTEGRATED PROGRAMME STATUS REPORT")
-    print("Ridgeline LNG Compressor Station Retrofit — as of", STATUS_DATE)
+    print("Ridgeline LNG Compressor Station Retrofit, as of", STATUS_DATE)
     print("=" * 68)
     print()
     forecast_finish, change_summary = dash["forecast_finish"], dash["change_summary"]
@@ -252,7 +252,7 @@ def chart_integrated_summary(dash: dict, sched: dict, chg: dict, rsk: dict) -> N
     ax.tick_params(axis="x", rotation=30)
 
     chart_style.apply_chrome(fig, axes)
-    fig.suptitle("Ridgeline LNG Compressor Station Retrofit — Four Disciplines, One Programme",
+    fig.suptitle("Ridgeline LNG Compressor Station Retrofit: Four Disciplines, One Programme",
                  fontsize=13, color=chart_style.INK)
     fig.tight_layout()
     fig.savefig(os.path.join(ASSETS_DIR, "integrated_summary.png"), dpi=140, facecolor=chart_style.CHART_BG)
@@ -266,7 +266,7 @@ def write_report_markdown(dash: dict, sched: dict, chg: dict, rsk: dict, obs: In
     lines = [
         "# Integrated Programme Status Report",
         "",
-        f"**Ridgeline LNG Compressor Station Retrofit** — as of {STATUS_DATE}",
+        f"**Ridgeline LNG Compressor Station Retrofit**, as of {STATUS_DATE}",
         "",
         "| Discipline | Headline |",
         "|---|---|",

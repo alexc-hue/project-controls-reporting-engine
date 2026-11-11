@@ -1,6 +1,6 @@
 # Integrated Programme Status Report
 
-**Ridgeline LNG Compressor Station Retrofit** — as of 2026-08-01
+**Ridgeline LNG Compressor Station Retrofit**, as of 2026-08-01
 
 | Discipline | Headline |
 |---|---|
