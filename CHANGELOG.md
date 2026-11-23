@@ -4,6 +4,32 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] - 2026-11-23
+
+Bug-fix release. The console report, `assets/report.md` and the chart are unchanged on the sample
+data.
+
+### Fixed
+
+- The planned finish for the SPI forecast was a hand-typed `PLANNED_FINISH` constant that only
+  happened to equal the baseline CPM finish. Editing one without the other silently moved the
+  forecast. The constant is gone: the schedule engine now runs first and its baseline finish is
+  passed to the dashboard engine, so `run_dashboard_engine` takes the planned finish as an argument.
+- `_run_engine` now also turns a `ValueError` (a cycle or blank duration in the CPM, no EVM
+  actuals yet) into a named error instead of a raw traceback.
+
+### Changed
+
+- Re-vendored the engines from schedule-health-analyzer 1.2.2 (`engines/schedule/cpm.py`),
+  change-control-register 1.2.2 (`engines/change/metrics.py`) and project-controls-dashboard 1.2.2
+  (`engines/dashboard/metrics.py`, `engines/formatting.py`). `engines/VENDORED.json` records the
+  new source commits.
+- README: the "point this at your own data" note no longer lists `PLANNED_FINISH`.
+
+### Added
+
+- Tests for both fixes.
+
 ## [1.2.1] - 2026-11-12
 
 Maintenance release. The only output change is the punctuation of the report headline and chart title.
@@ -65,6 +91,7 @@ Checks and tests only. The tool's output is unchanged.
 
 First tagged release, marking the state of the repo before this changelog started. Runs the EVM, schedule health, change control and risk trend engines against one shared programme and composes a single integrated status report. Includes the fixes from code review, a pytest suite and CI.
 
+[1.2.2]: https://github.com/alexc-hue/project-controls-reporting-engine/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/alexc-hue/project-controls-reporting-engine/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/alexc-hue/project-controls-reporting-engine/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/alexc-hue/project-controls-reporting-engine/compare/v1.0.0...v1.1.0

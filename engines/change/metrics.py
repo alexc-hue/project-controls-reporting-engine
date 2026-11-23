@@ -16,21 +16,42 @@ import pandas as pd
 
 STALE_PENDING_DAYS = 30  # a pending change open longer than this gets flagged
 
+# The statuses this tool counts. Matching ignores case and surrounding
+# whitespace; any other status is kept as written.
+STATUSES = ("Pending", "Approved", "Rejected")
+_CANONICAL_STATUS = {status.casefold(): status for status in STATUSES}
+
+
+def _tidy_status(value):
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    return _CANONICAL_STATUS.get(text.casefold(), text)
+
+
+def normalise_status(status: pd.Series) -> pd.Series:
+    """Status labels with surrounding whitespace removed, and "pending",
+    " Approved" and the like written as the canonical label, so a hand-typed
+    variant is counted like the rest. Missing values stay missing."""
+    return status.map(_tidy_status)
+
 
 def _is_decided(df: pd.DataFrame) -> pd.Series:
     """A change is "decided" when it actually has a decision date, not merely
-    whenever its status isn't "Pending" — that would also catch any other
+    whenever its status isn't "Pending", since that would also catch any other
     non-pending-but-undecided status (e.g. "Cancelled", "On Hold")."""
     return df["date_decided"].notna()
 
 
 def load_change_log(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, parse_dates=["date_raised", "date_decided"])
+    df["status"] = normalise_status(df["status"])
     return df.sort_values("date_raised").reset_index(drop=True)
 
 
 def add_cycle_and_aging(changes: pd.DataFrame, status_date: str) -> pd.DataFrame:
     df = changes.copy()
+    df["status"] = normalise_status(df["status"])
     status_dt = pd.Timestamp(status_date)
 
     # See _is_decided() above: a change is "decided" when it has an actual
@@ -38,11 +59,13 @@ def add_cycle_and_aging(changes: pd.DataFrame, status_date: str) -> pd.DataFrame
     # would also catch e.g. "Cancelled"/"On Hold" and leave cycle_days as NaN
     # for those rows).
     decided = _is_decided(df)
-    df["cycle_days"] = pd.NA
+    # Float NaN, not pd.NA, for "no value": pd.NA would make these object
+    # columns, which compare and sum through slower, NA-rule-dependent paths.
+    df["cycle_days"] = float("nan")
     df.loc[decided, "cycle_days"] = (df.loc[decided, "date_decided"] - df.loc[decided, "date_raised"]).dt.days
 
     pending = df["status"] == "Pending"
-    df["days_open"] = pd.NA
+    df["days_open"] = float("nan")
     df.loc[pending, "days_open"] = (status_dt - df.loc[pending, "date_raised"]).dt.days
     df["is_stale"] = pending & (df["days_open"] > STALE_PENDING_DAYS)
     return df
@@ -50,16 +73,17 @@ def add_cycle_and_aging(changes: pd.DataFrame, status_date: str) -> pd.DataFrame
 
 def cumulative_impact(changes: pd.DataFrame) -> pd.DataFrame:
     """Approved changes only, ordered by decision date, with running totals."""
-    approved = changes[changes["status"] == "Approved"].sort_values("date_decided").copy()
+    approved = changes[normalise_status(changes["status"]) == "Approved"].sort_values("date_decided").copy()
     approved["cum_cost"] = approved["cost_impact"].cumsum()
     approved["cum_schedule_days"] = approved["schedule_impact_days"].cumsum()
     return approved
 
 
 def summary_stats(changes: pd.DataFrame) -> dict:
-    approved = changes[changes["status"] == "Approved"]
-    rejected = changes[changes["status"] == "Rejected"]
-    pending = changes[changes["status"] == "Pending"]
+    status = normalise_status(changes["status"])
+    approved = changes[status == "Approved"]
+    rejected = changes[status == "Rejected"]
+    pending = changes[status == "Pending"]
     # Same _is_decided() definition used in add_cycle_and_aging.
     decided = changes[_is_decided(changes)]
 

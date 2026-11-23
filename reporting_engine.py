@@ -33,23 +33,25 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 ASSETS_DIR = os.path.join(os.path.dirname(__file__), "assets")
 
 # Edit these to match your own programme -- see README ("point this at your
-# own data"). They aren't read from the CSVs: BAC/PROJECT_START/
-# PLANNED_FINISH/STATUS_DATE are this fictional programme's assumptions, and
-# swapping in your own CSVs without also updating these will compute a real
-# programme against the wrong budget, dates, and status cutoff.
+# own data"). They aren't read from the CSVs: BAC/PROJECT_START/STATUS_DATE
+# are this fictional programme's assumptions, and swapping in your own CSVs
+# without also updating these will compute a real programme against the
+# wrong budget, dates, and status cutoff. The planned finish is not a
+# constant: it is the baseline CPM finish from activities.csv, so the
+# SPI forecast and the schedule can't disagree about it.
 BAC = 2_400_000
 PROJECT_START = "2026-01-05"
-PLANNED_FINISH = "2026-08-03"
 STATUS_DATE = "2026-08-01"
 
 
-def run_dashboard_engine():
+def run_dashboard_engine(planned_finish):
+    """The EVM side. planned_finish is the baseline CPM finish (see main)."""
     ts = dash_metrics.load_timeseries(os.path.join(DATA_DIR, "cost_schedule_timeseries.csv"))
     milestones = dash_metrics.load_milestones(os.path.join(DATA_DIR, "milestones.csv"))
     risks = dash_metrics.load_risk_register(os.path.join(DATA_DIR, "risk_register.csv"), STATUS_DATE)
     changes = dash_metrics.load_change_register(os.path.join(DATA_DIR, "change_register.csv"))
     summary = dash_metrics.project_summary(ts, BAC)
-    forecast_finish = dash_metrics.forecast_completion_date(summary["spi"], PROJECT_START, PLANNED_FINISH)
+    forecast_finish = dash_metrics.forecast_completion_date(summary["spi"], PROJECT_START, planned_finish)
     change_summary = dash_metrics.change_impact_summary(changes, BAC)
     return {
         "ts": ts, "milestones": milestones, "risks": risks, "changes": changes,
@@ -101,6 +103,11 @@ def _run_engine(label: str, files_needed: str, fn: Callable[[], dict]) -> dict:
             f"Cannot build the integrated report: the {label} engine's data is missing "
             f"an expected column ({exc}). Needs: {files_needed} in {DATA_DIR}, with the "
             f"same columns as the standalone tool's README describes."
+        ) from exc
+    except ValueError as exc:
+        raise SystemExit(
+            f"Cannot build the integrated report: the {label} engine rejected its data: "
+            f"{exc} Check {files_needed} in {DATA_DIR}."
         ) from exc
 
 
@@ -297,11 +304,13 @@ def write_report_markdown(dash: dict, sched: dict, chg: dict, rsk: dict, obs: In
 def main() -> None:
     os.makedirs(ASSETS_DIR, exist_ok=True)
 
+    # Schedule first: its baseline finish is the dashboard's planned finish.
+    sched_result = _run_engine("schedule", "activities.csv", run_schedule_engine)
+    planned_finish = sched_result["baseline"].project_finish
     dash_result = _run_engine(
         "dashboard", "cost_schedule_timeseries.csv, milestones.csv, risk_register.csv, change_register.csv",
-        run_dashboard_engine,
+        lambda: run_dashboard_engine(planned_finish),
     )
-    sched_result = _run_engine("schedule", "activities.csv", run_schedule_engine)
     chg_result = _run_engine("change", "change_log.csv", run_change_engine)
     rsk_result = _run_engine("risk", "risk_snapshots.csv", run_risk_engine)
     obs = _integrated_observations(dash_result["summary"], sched_result["score"], chg_result["stats"])

@@ -11,6 +11,7 @@ each still returns the expected dict shape).
 
 from __future__ import annotations
 
+import pandas as pd
 import pytest
 
 import reporting_engine as engine
@@ -63,7 +64,7 @@ def test_integrated_observations_composes_expected_sentences():
 # --- smoke tests: each engine wrapper against the repo's own sample data ---
 
 def test_run_dashboard_engine_smoke():
-    result = engine.run_dashboard_engine()
+    result = engine.run_dashboard_engine(engine.run_schedule_engine()["baseline"].project_finish)
     assert set(result.keys()) == {
         "ts", "milestones", "risks", "changes", "summary", "forecast_finish", "change_summary",
     }
@@ -86,3 +87,34 @@ def test_run_risk_engine_smoke():
     result = engine.run_risk_engine()
     assert set(result.keys()) == {"exposure_trend", "trajectory", "effectiveness", "score"}
     assert "total_score" in result["score"]
+
+
+# --- 1.2.2 -------------------------------------------------------------------
+
+def test_run_engine_wraps_value_error_as_named_system_exit():
+    """A cycle or blank duration in CPM, or no EVM actuals yet, used to escape
+    as a raw traceback."""
+    def boom():
+        raise ValueError("Cycle detected in activity network (activities on or behind it: A, B).")
+
+    with pytest.raises(SystemExit) as exc_info:
+        engine._run_engine("schedule", "activities.csv", boom)
+    message = str(exc_info.value)
+    assert "schedule" in message
+    assert "Cycle detected" in message
+    assert "activities.csv" in message
+
+
+def test_dashboard_forecast_uses_the_baseline_cpm_finish():
+    """The planned finish used to be typed by hand next to the CPM that computes
+    it, so editing one silently left the SPI forecast on a stale date."""
+    baseline_finish = engine.run_schedule_engine()["baseline"].project_finish
+    dash = engine.run_dashboard_engine(baseline_finish)
+    expected = engine.dash_metrics.forecast_completion_date(
+        dash["summary"]["spi"], engine.PROJECT_START, baseline_finish
+    )
+    assert dash["forecast_finish"] == expected
+
+    later = engine.run_dashboard_engine(baseline_finish + pd.Timedelta(days=30))
+    assert later["forecast_finish"] > dash["forecast_finish"]
+    assert not hasattr(engine, "PLANNED_FINISH")
