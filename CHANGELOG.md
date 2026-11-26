@@ -4,6 +4,17 @@ All notable changes to this project are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and version numbers
 follow [Semantic Versioning](https://semver.org/).
 
+## [1.2.3] - 2026-11-27
+
+Maintenance release. No number changed; only the name of the fictional sample programme.
+
+### Changed
+
+- The fictional sample programme is now the Thornmere LNG Compressor Station Retrofit. The old
+  sample name matched the name of a real gas pipeline project, so the report headline, the chart
+  title, the README result block, `assets/report.md` and `assets/integrated_summary.png` use the
+  new name. The sample data and every figure are unchanged.
+
 ## [1.2.2] - 2026-11-23
 
 Bug-fix release. The console report, `assets/report.md` and the chart are unchanged on the sample
@@ -36,8 +47,8 @@ Maintenance release. The only output change is the punctuation of the report hea
 
 ### Changed
 
-- The report headline reads "Ridgeline LNG Compressor Station Retrofit, as of <date>", and the
-  chart title uses a colon, where both had a long dash. `assets/report.md` and
+- The report headline reads "<programme name>, as of <date>", and the chart title uses a colon,
+  where both had a long dash. `assets/report.md` and
   `assets/integrated_summary.png` are regenerated. No number changed.
 - `pytest>=9.0.3` in `requirements-dev.txt` (was `>=7.0`).
 - CI runs the tests on Python 3.11, 3.12, 3.13 and 3.14 (was 3.11 and 3.12).
@@ -91,6 +102,7 @@ Checks and tests only. The tool's output is unchanged.
 
 First tagged release, marking the state of the repo before this changelog started. Runs the EVM, schedule health, change control and risk trend engines against one shared programme and composes a single integrated status report. Includes the fixes from code review, a pytest suite and CI.
 
+[1.2.3]: https://github.com/alexc-hue/project-controls-reporting-engine/compare/v1.2.2...v1.2.3
 [1.2.2]: https://github.com/alexc-hue/project-controls-reporting-engine/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/alexc-hue/project-controls-reporting-engine/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/alexc-hue/project-controls-reporting-engine/compare/v1.1.0...v1.2.0

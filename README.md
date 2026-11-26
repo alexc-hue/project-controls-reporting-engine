@@ -72,7 +72,7 @@ from. The tests check that no copy has been edited here, and a separate CI job
 ```
 ====================================================================
 INTEGRATED PROGRAMME STATUS REPORT
-Ridgeline LNG Compressor Station Retrofit, as of 2026-08-01
+Thornmere LNG Compressor Station Retrofit, as of 2026-08-01
 ====================================================================
 
 COST / EVM (dashboard engine)
